@@ -83,28 +83,40 @@ public:
 
 //agent class for finite state machines
 class AgentFSM: public Agent{
+public:
 	int fuellvl;
 	int distToCov;
+	int distCovd;
+	int currentState;
 
 	//agent constructor for fsm
-	__device__ __host__ AgentFSM(int cId, int cResult, int cFuellvl, int cDistToCov){
+	__device__ __host__ AgentFSM(){}
+
+	__device__ __host__ AgentFSM(int cId, int cResult, int cFuellvl, int cDistToCov, int cDistCovd, int cCurrentState){
 		id = cId;
 		result = cResult;
 		fuellvl = cFuellvl;
 		distToCov = cDistToCov;
+		distCovd = cDistCovd;
+		currentState = cCurrentState;
 	}
 
 	//setters
 	__device__ __host__ void set_fuellvl(int cFuellvl){ fuellvl = cFuellvl; }
 	__device__ __host__ void set_distToCov(int cDistToCov){ distToCov = cDistToCov; }
+	__device__ __host__ void set_distCovd(int cDistCovd){ distCovd = cDistCovd; }
+	__device__ __host__ void set_currentState(int cCurrentState){ currentState = cCurrentState; }
 
 	//getters
 	__device__ __host__ int get_fuellvl(){ return fuellvl; }
 	__device__ __host__ int get_distToCov(){ return distToCov; }
+	__device__ __host__ int get_distCovd(){ return distCovd; }
+	__device__ __host__ int get_currentState(){ return currentState; }
 };
 
 //agent class for decision trees
 class AgentDT: public Agent{
+public:
 	//decisions will be randomised
 	//d1 -> first level
 	//d2 -> second level
@@ -614,6 +626,87 @@ __global__ void carFSM(float* d_array, float* destinationArray, size_t pitch, in
 	}
 }
 
+__global__ void carFSM(AgentFSM* d_array,  int noOfAgents){
+	int idx = blockIdx.x*blockDim.x + threadIdx.x;
+	int myDistCovd;
+	int myFuelLvl;
+	const int startState = 1;
+	const int driveState = 2;
+	const int getFuelState = 3;
+	const int endState = 4;
+	
+//	if(idx < noOfAgents) d_array[idx].set_result(1);
+	
+	if(idx < noOfAgents){
+		bool finished = false;
+		int index = 0;
+		d_array[idx].set_currentState(startState); //store current state
+		index++;
+
+		while(index < 30){
+			switch(d_array[idx].get_currentState()){
+				//START STATE
+				case startState:
+				//	std::cout << "Start State" << std::endl;
+					d_array[idx].set_currentState(driveState);
+					index++;
+					break;
+				//DRIVING STATE
+				case driveState:
+					//check if the distance covered so far is not the goal distance
+					if(d_array[idx].get_distCovd() != d_array[idx].get_distToCov()){
+						//check if the car needs to get fuel
+						if(d_array[idx].get_fuellvl() < 2){
+							d_array[idx].set_currentState(getFuelState);
+							index++;
+						}
+						//proceed if theres more distance to cover & car has fuel
+						else{
+						//	std::cout << "Driving State" << std::endl;
+							d_array[idx].set_currentState(driveState);
+							//update distance covered
+							myDistCovd = d_array[idx].get_currentState();
+							myDistCovd++;	//distance + 1
+							d_array[idx].set_distCovd(myDistCovd);
+							//update fuel level
+							myFuelLvl = d_array[idx].get_fuellvl();
+							myFuelLvl--;	//fuel - 1
+							d_array[idx].set_fuellvl(myFuelLvl);
+							index++;
+						}
+					}
+					//when at goal
+					else{
+						d_array[idx].set_currentState(endState);
+						index++;
+					}
+					break;
+				//GETTING FUEL
+				case getFuelState:
+				//	std::cout << "Get Fuel State" << std::endl;
+					//fuel up by 1
+					myFuelLvl = d_array[idx].get_fuellvl();
+					myFuelLvl += 1;
+					d_array[idx].set_fuellvl(myFuelLvl);
+					d_array[idx].set_currentState(driveState);
+					index++;
+					break;
+				//END STATE --> at destination
+				case endState:
+				//	std::cout << "End State" << std::endl;
+					d_array[idx].set_currentState(endState);
+					//end while loop 
+					finished = true;
+					index++;
+					break;
+			}
+		}
+		//number of states
+		d_array[idx].set_result(index);
+	}
+}
+
+
 //CPU execution
 void carDT(int agents){
 	int i = 0;
@@ -968,6 +1061,52 @@ int main(){
 		}
 		//cuda execution
 		else if(c == 2){
+			int i = 0;
+			const int noOfAgents = 10;
+			size_t size = noOfAgents * sizeof(AgentFSM);
+			std::cout << "10 Agents are being initialised" << std::endl;
+
+			//allocate agents in host memory
+			AgentFSM* h_Agents = (AgentFSM*)malloc(size);
+			
+			//init agents
+			//AgentFSM agents[noOfAgents];
+
+			//populate agents
+			while(i < noOfAgents){
+				h_Agents[i].set_id(i);			//unique id
+				h_Agents[i].set_result(0);		//0 before executions
+				h_Agents[i].set_fuellvl(3);		//same for all objects for now
+				h_Agents[i].set_distToCov(5);	//same for all objects for now
+				h_Agents[i].set_distCovd(0);		//start 
+				i++;
+			}
+
+			//allocate agents in device memory
+			AgentFSM* d_Agents;
+			cudaMalloc((void **)&d_Agents, size);
+
+			//copy agents from host memory to device memory
+			cudaMemcpy(d_Agents, h_Agents, size, cudaMemcpyHostToDevice);
+
+			//invoke kernel
+		//	int threadsPerBlock = 4;
+		//	int blocksPerGrid = (noOfAgents + threadsPerBlock -1) / threadsPerBlock;
+			int block_size = 4;
+			int n_blocks = noOfAgents/block_size + (noOfAgents%block_size == 0 ? 0:1);
+			//function call here
+			carFSM<<<n_blocks, block_size>>>(d_Agents, noOfAgents);
+
+			cudaMemcpy(h_Agents, d_Agents, sizeof(AgentFSM)*noOfAgents, cudaMemcpyDeviceToHost);
+
+			int index=0;
+			while(index <noOfAgents){
+				std::cout << h_Agents[index].get_result() << std::endl;
+				index++;
+			}
+
+
+			/*
 			//agents = number of rows on cuda
 			std::cout << "Enter the number of agents" << std::endl;
 			std::cin >> noAgents;
@@ -1001,7 +1140,7 @@ int main(){
 				for(int j = 0; j < cols; j++){
 					std::cout << "h_array[" << (i*cols) +j << "]="<< h_array[(i*cols) + j] << std::endl;
 				}
-			}
+			}*/
 		}
 		else
 			std::cout << "ERROR, wrong number" << std::endl;
