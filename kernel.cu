@@ -664,40 +664,48 @@ void carDT(int agents){
 		}
 	
 }
-/*
+
 //CUDA execution
-__global__ void carDT(int agents, int asd){
-	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	srand( time(NULL) ); 
+__global__ void carDT(AgentDT* d_array,  int noOfAgents){
+	int idx = blockIdx.x*blockDim.x + threadIdx.x;
+/*	srand( time(NULL) ); 
 	int atDest = rand()%2;
 	int parkAv = rand()%2;
-	int lowPetrol = rand()%2;
-	if(i < agents){
+	int lowPetrol = rand()%2;*/
+	/* 1 - You are at destination. Car Parked
+	*  2 - You are at destination. Looking for parking
+	*  3 - Not at destination. Low petrol - looking for a petrol station
+	*  4 - Not at destination. Still driving
+	*/
+	if(idx < noOfAgents){
 		//if at destination
-		if(atDest == 1){
+		if(d_array[idx].get_d1() == 1){
 			//if parking available
-			if(parkAv == 1){
+			if(d_array[idx].get_d2() == 1){
 		//		std::cout << "You are at destination. Car Parked." << std::endl;
+				d_array[idx].set_result(1);
 			}
 			//if parking unavailable
 			else{
 		//		std::cout << "You are at destination. Looking for parking." << std::endl;
+				d_array[idx].set_result(2);
 			}
 		}
 		//if not at destination
 		else{
 			//if low on petrol
-			if(lowPetrol == 1){
+			if(d_array[idx].get_d2() == 1){
 			//	std::cout << "Not at destination. Low petrol - looking for a petrol station." << std::endl;
+				d_array[idx].set_result(3);
 			}
 			//if not low on petrol
 			else{
 			//	std::cout << "Not at destination. Still driving." << std::endl;
+				d_array[idx].set_result(4);
 			}
 		}
 	}
 }
-*/
 
 //!!---CODE FROM http://choorucode.com/2011/04/09/thrust-passing-device_vector-to-kernel/ ---!!
 // Template structure to pass to kernel
@@ -1025,48 +1033,13 @@ int main(){
 
 			cudaMemcpy(h_Agents, d_Agents, sizeof(AgentFSM)*noOfAgents, cudaMemcpyDeviceToHost);
 
-			int index=0;
-			while(index <noOfAgents){
-				std::cout << h_Agents[index].get_result() << std::endl;
-				index++;
+			for(int i = 0; i < noOfAgents; i++){
+				std::cout << h_Agents[i].get_result() << std::endl;
 			}
 
-
-			/*
-			//agents = number of rows on cuda
-			std::cout << "Enter the number of agents" << std::endl;
-			std::cin >> noAgents;
-			rows = noAgents;
-			//states = columns
-			cols = 30;	//max number of states per agent
-
-			float* d_array; //device array which memory will be allocated to
-			float* d_destinationArray; //device array
-
-			//allocate memory on the host
-			float* h_array = new float[rows*cols];
-
-			//the pitch values is assigned by cudaMallocPitch 
-			//it ensures correct data structure alignment
-			size_t pitch;
-
-			//allocated the device memory for source array
-			cudaMallocPitch(&d_array, &pitch, rows*sizeof(float), cols);
-
-			//allocate the device memory for destination array
-			cudaMalloc(&d_destinationArray, rows*cols*sizeof(float));
-
-			//call the kernel which copies values for d_array to d_destinationArray
-			carFSM<<<100, 512>>>(d_array, d_destinationArray, pitch, rows, cols);
-
-			//copy the data back to the host memory
-			cudaMemcpy(h_array, d_destinationArray, rows*cols*sizeof(float), cudaMemcpyDeviceToHost);
-
-			for(int i = 0; i < rows; i++){
-				for(int j = 0; j < cols; j++){
-					std::cout << "h_array[" << (i*cols) +j << "]="<< h_array[(i*cols) + j] << std::endl;
-				}
-			}*/
+			//free memory
+			free(h_Agents);
+			cudaFree(d_Agents);
 		}
 		else
 			std::cout << "ERROR, wrong number" << std::endl;
@@ -1087,10 +1060,48 @@ int main(){
 		}
 		//cuda execution
 		else if(c == 2){
-			std::cout << "Enter the number of agents" << std::endl;
-			std::cin >> noAgents;
+			int i = 0;
+			const int noOfAgents = 10;
+			size_t size = noOfAgents * sizeof(AgentDT);
+			std::cout << "10 Agents are being initialised" << std::endl;
 
-		//	carDT<<<256, 256>>>(noAgents);
+			//allocate agents in host memory
+			AgentDT* h_Agents = (AgentDT*)malloc(size);
+			
+			//init agents
+			//AgentFSM agents[noOfAgents];
+
+			//populate agents
+			while(i < noOfAgents){
+				h_Agents[i].set_id(i);		//unique id
+				h_Agents[i].set_result(0);	//0 before executions
+				h_Agents[i].set_d1(1);		//same for all objects for now
+				h_Agents[i].set_d2(2);		//same for all objects for now
+				h_Agents[i].set_d3(1);		//same for all objects for now
+				i++;
+			}
+
+			//allocate agents in device memory
+			AgentDT* d_Agents;
+			cudaMalloc((void **)&d_Agents, size);
+
+			//copy agents from host memory to device memory
+			cudaMemcpy(d_Agents, h_Agents, size, cudaMemcpyHostToDevice);
+
+			//invoke kernel
+		//	int threadsPerBlock = 4;
+		//	int blocksPerGrid = (noOfAgents + threadsPerBlock -1) / threadsPerBlock;
+			int block_size = 4;
+			int n_blocks = noOfAgents/block_size + (noOfAgents%block_size == 0 ? 0:1);
+			//function call here
+			carDT<<<n_blocks, block_size>>>(d_Agents, noOfAgents);
+
+			cudaMemcpy(h_Agents, d_Agents, sizeof(AgentDT)*noOfAgents, cudaMemcpyDeviceToHost);
+
+			for(int i = 0; i < noOfAgents; i++){
+				std::cout << h_Agents[i].get_result() << std::endl;
+			}
+
 		}
 		else
 			std::cout << "ERROR, wrong number" << std::endl;
