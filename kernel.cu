@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <iostream>
 #include <vector>
-#include "Agent.h"
 #include <stdlib.h>     /* abs */
 #include <ctime>
 
@@ -28,6 +27,150 @@ const int W = 0; //WALKABLE
 const int S = 1; //START POINT
 const int E = 2; //END POINT
 const int O = 3; //OBSTRUCTION
+
+//base agent class
+class Agent{
+public:
+	int id;
+	int result;
+
+	//constructors
+	__device__ __host__ Agent(){}
+	__device__ __host__ Agent(int cId, int cResult){
+		id = cId;
+		result = cResult;
+	}
+
+	//setters
+	__device__ __host__ void set_id(int cId){ id = cId; }
+	__device__ __host__ void set_result(int cResult){ result = cResult; }
+
+	//getters
+	__device__ __host__ int get_id(){ return id; }
+	__device__ __host__ int get_result() {return result; }
+};
+
+//agent class for A* search
+class AgentSearch: public Agent{
+public:
+	int startX, startY;
+	int endX, endY;
+
+	__device__ __host__ AgentSearch(){}
+
+	//agent constructor for a* search
+	__device__ __host__ AgentSearch(int cId, int cResult, int cStartX, int cStartY, int cEndX, int cEndY){
+		id = cId;
+		result = cResult;
+		startX = cStartX;
+		startY = cStartY;
+		endX = cEndX;
+		endY = cEndY;
+	}
+
+	//setters
+	__device__ __host__ void set_startX(int cStartX){ startX = cStartX; }
+	__device__ __host__ void set_startY(int cStartY){ startY = cStartY; }
+	__device__ __host__ void set_endX(int cEndX){ endX = cEndX; }
+	__device__ __host__ void set_endY(int cEndY){ endY = cEndY; }
+
+	//getters
+	__device__ __host__ int get_startX(){ return startX; }
+	__device__ __host__ int get_startY(){ return startY; }
+	__device__ __host__ int get_endX(){ return endX; }
+	__device__ __host__ int get_endY(){ return endY; }
+};
+
+//agent class for finite state machines
+class AgentFSM: public Agent{
+	int fuellvl;
+	int distToCov;
+
+	//agent constructor for fsm
+	__device__ __host__ AgentFSM(int cId, int cResult, int cFuellvl, int cDistToCov){
+		id = cId;
+		result = cResult;
+		fuellvl = cFuellvl;
+		distToCov = cDistToCov;
+	}
+
+	//setters
+	__device__ __host__ void set_fuellvl(int cFuellvl){ fuellvl = cFuellvl; }
+	__device__ __host__ void set_distToCov(int cDistToCov){ distToCov = cDistToCov; }
+
+	//getters
+	__device__ __host__ int get_fuellvl(){ return fuellvl; }
+	__device__ __host__ int get_distToCov(){ return distToCov; }
+};
+
+//agent class for decision trees
+class AgentDT: public Agent{
+	//decisions will be randomised
+	//d1 -> first level
+	//d2 -> second level
+	//etc.
+	int d1, d2, d3, d4, d5, d6;
+
+	//agent constructor for dt -> 3 levels(minimum, at the moment anyway)
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+	}
+
+	//4 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+	}
+
+	//5 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+		d5 = cD5;
+	}
+
+	//6 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5, int cD6){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+		d5 = cD5;
+		d6 = cD6;
+	}
+
+	//setters
+	__device__ __host__ void set_d1(int cD1){ d1 = cD1; }
+	__device__ __host__ void set_d2(int cD2){ d2 = cD2; }
+	__device__ __host__ void set_d3(int cD3){ d3 = cD3; }
+	__device__ __host__ void set_d4(int cD4){ d4 = cD4; }
+	__device__ __host__ void set_d5(int cD5){ d5 = cD5; }
+	__device__ __host__ void set_d6(int cD6){ d6 = cD6; }
+
+	//getters
+	__device__ __host__ int get_d1(){ return d1; }
+	__device__ __host__ int get_d2(){ return d2; }
+	__device__ __host__ int get_d3(){ return d3; }
+	__device__ __host__ int get_d4(){ return d4; }
+	__device__ __host__ int get_d5(){ return d5; }
+	__device__ __host__ int get_d6(){ return d6; }
+
+};
+
 
 class Node{
 public:
@@ -714,8 +857,8 @@ int main(){
 		int endX, endY;
 
 		//agent list
-		std::vector<Agent> agentList;
-		Agent a1;
+		std::vector<AgentSearch> agentList;
+		AgentSearch a1;
 
 		//start node list
 		std::vector<Node> startNodeList;
@@ -775,7 +918,7 @@ int main(){
 
 		//iterate through the agentList
 		//and populate start node and end node vectors
-		std::vector<Agent>::iterator agentIt;
+		std::vector<AgentSearch>::iterator agentIt;
 		for(agentIt = agentList.begin(); agentIt != agentList.end(); ++agentIt){
 			//start node
 			n1.set_status(S);
