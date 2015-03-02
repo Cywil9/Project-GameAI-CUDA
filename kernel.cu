@@ -554,78 +554,6 @@ void carFSM(int tankSize, int distToCover){
 
 //CUDA execution
 //int tankSize, int distToCover <-- randomise? 
-__global__ void carFSM(float* d_array, float* destinationArray, size_t pitch, int rows, int cols){
-	
-	int idx = blockIdx.x*blockDim.x + threadIdx.x;
-	int fuellvl = 5;		//full tank at the start
-	int distToCover = 10;	//distance to be covered by all agents <-- randomise?
-	int distCov = 0;		//distance covered so fat
-	int allStates[30];		//30 -> max number of agents, stores current state of agent
-	const int startState = 1;
-	const int driveState = 2;
-	const int getFuelState = 3;
-	const int endState = 4;
-
-	if(idx < rows){
-		bool finished = false;
-		int index = 0;
-		allStates[idx] = startState; //store current state
-		index++;
-
-		while(!finished){
-			switch(allStates[idx]){
-				//START STATE
-				case startState:
-				//	std::cout << "Start State" << std::endl;
-					allStates[idx] = driveState;
-					index++;
-					break;
-				//DRIVING STATE
-				case driveState:
-					//check if the distance covered so far is not the goal distance
-					if(distCov != distToCover){
-						//check if the car needs to get fuel
-						if(fuellvl < 2){
-							allStates[idx] = getFuelState;
-							index++;
-						}
-						//proceed if theres more distance to cover & car has fuel
-						else{
-						//	std::cout << "Driving State" << std::endl;
-							allStates[idx] = driveState;
-							distCov++;	//distance + 1
-							fuellvl--;	//fuel - 1
-							index++;
-						}
-					}
-					//when at goal
-					else{
-						allStates[idx] = endState;
-						index++;
-					}
-					break;
-				//GETTING FUEL
-				case getFuelState:
-				//	std::cout << "Get Fuel State" << std::endl;
-					//fuel up by 5
-					fuellvl+= 5;
-					allStates[idx] = driveState;
-					index++;
-					break;
-				//END STATE --> at destination
-				case endState:
-				//	std::cout << "End State" << std::endl;
-					allStates[idx] = endState;
-					//end while loop 
-					finished = true;
-					index++;
-					break;
-			}
-		}
-		destinationArray[idx] = index;
-	}
-}
-
 __global__ void carFSM(AgentFSM* d_array,  int noOfAgents){
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	int myDistCovd;
@@ -634,8 +562,6 @@ __global__ void carFSM(AgentFSM* d_array,  int noOfAgents){
 	const int driveState = 2;
 	const int getFuelState = 3;
 	const int endState = 4;
-	
-//	if(idx < noOfAgents) d_array[idx].set_result(1);
 	
 	if(idx < noOfAgents){
 		bool finished = false;
