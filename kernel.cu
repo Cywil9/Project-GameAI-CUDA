@@ -28,232 +28,78 @@ const int S = 1; //START POINT
 const int E = 2; //END POINT
 const int O = 3; //OBSTRUCTION
 
-//base agent class
-class Agent{
-public:
-	int id;
-	int result;
-
-	//constructors
-	__device__ __host__ Agent(){}
-	__device__ __host__ Agent(int cId, int cResult){
-		id = cId;
-		result = cResult;
-	}
-
-	//setters
-	__device__ __host__ void set_id(int cId){ id = cId; }
-	__device__ __host__ void set_result(int cResult){ result = cResult; }
-
-	//getters
-	__device__ __host__ int get_id(){ return id; }
-	__device__ __host__ int get_result() {return result; }
-};
-
-//agent class for A* search
-class AgentSearch: public Agent{
-public:
-	int startX, startY;
-	int endX, endY;
-
-	__device__ __host__ AgentSearch(){}
-
-	//agent constructor for a* search
-	__device__ __host__ AgentSearch(int cId, int cResult, int cStartX, int cStartY, int cEndX, int cEndY){
-		id = cId;
-		result = cResult;
-		startX = cStartX;
-		startY = cStartY;
-		endX = cEndX;
-		endY = cEndY;
-	}
-
-	//setters
-	__device__ __host__ void set_startX(int cStartX){ startX = cStartX; }
-	__device__ __host__ void set_startY(int cStartY){ startY = cStartY; }
-	__device__ __host__ void set_endX(int cEndX){ endX = cEndX; }
-	__device__ __host__ void set_endY(int cEndY){ endY = cEndY; }
-
-	//getters
-	__device__ __host__ int get_startX(){ return startX; }
-	__device__ __host__ int get_startY(){ return startY; }
-	__device__ __host__ int get_endX(){ return endX; }
-	__device__ __host__ int get_endY(){ return endY; }
-};
-
-//agent class for finite state machines
-class AgentFSM: public Agent{
-public:
-	int fuellvl;
-	int distToCov;
-	int distCovd;
-	int currentState;
-
-	//agent constructor for fsm
-	__device__ __host__ AgentFSM(){}
-
-	__device__ __host__ AgentFSM(int cId, int cResult, int cFuellvl, int cDistToCov, int cDistCovd, int cCurrentState){
-		id = cId;
-		result = cResult;
-		fuellvl = cFuellvl;
-		distToCov = cDistToCov;
-		distCovd = cDistCovd;
-		currentState = cCurrentState;
-	}
-
-	//setters
-	__device__ __host__ void set_fuellvl(int cFuellvl){ fuellvl = cFuellvl; }
-	__device__ __host__ void set_distToCov(int cDistToCov){ distToCov = cDistToCov; }
-	__device__ __host__ void set_distCovd(int cDistCovd){ distCovd = cDistCovd; }
-	__device__ __host__ void set_currentState(int cCurrentState){ currentState = cCurrentState; }
-
-	//getters
-	__device__ __host__ int get_fuellvl(){ return fuellvl; }
-	__device__ __host__ int get_distToCov(){ return distToCov; }
-	__device__ __host__ int get_distCovd(){ return distCovd; }
-	__device__ __host__ int get_currentState(){ return currentState; }
-};
-
-//agent class for decision trees
-class AgentDT: public Agent{
-public:
-	//decisions will be randomised
-	//d1 -> first level
-	//d2 -> second level
-	//etc.
-	int d1, d2, d3, d4, d5, d6;
-
-	//agent constructor for dt -> 3 levels(minimum, at the moment anyway)
-	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3){
-		id = cId;
-		result = cResult;
-		d1 = cD1;
-		d2 = cD2;
-		d3 = cD3;
-	}
-
-	//4 levels
-	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4){
-		id = cId;
-		result = cResult;
-		d1 = cD1;
-		d2 = cD2;
-		d3 = cD3;
-		d4 = cD4;
-	}
-
-	//5 levels
-	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5){
-		id = cId;
-		result = cResult;
-		d1 = cD1;
-		d2 = cD2;
-		d3 = cD3;
-		d4 = cD4;
-		d5 = cD5;
-	}
-
-	//6 levels
-	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5, int cD6){
-		id = cId;
-		result = cResult;
-		d1 = cD1;
-		d2 = cD2;
-		d3 = cD3;
-		d4 = cD4;
-		d5 = cD5;
-		d6 = cD6;
-	}
-
-	//setters
-	__device__ __host__ void set_d1(int cD1){ d1 = cD1; }
-	__device__ __host__ void set_d2(int cD2){ d2 = cD2; }
-	__device__ __host__ void set_d3(int cD3){ d3 = cD3; }
-	__device__ __host__ void set_d4(int cD4){ d4 = cD4; }
-	__device__ __host__ void set_d5(int cD5){ d5 = cD5; }
-	__device__ __host__ void set_d6(int cD6){ d6 = cD6; }
-
-	//getters
-	__device__ __host__ int get_d1(){ return d1; }
-	__device__ __host__ int get_d2(){ return d2; }
-	__device__ __host__ int get_d3(){ return d3; }
-	__device__ __host__ int get_d4(){ return d4; }
-	__device__ __host__ int get_d5(){ return d5; }
-	__device__ __host__ int get_d6(){ return d6; }
-
-};
-
-
 class Node{
 public:
+	int id;
 	int status;
 	int row;
 	int col;
 	int costG;		//move cost from starting point
 	int costH;		//estimated move cost to final destination (10 per square)
 	int totalF;		// G + H
-	int agentId;
 	Node *parent; //pointer to parent node
 
 	//Node constructor
 	__device__ __host__ Node(){}
 
-	__device__ __host__ Node(int nStatus){
-		status = nStatus;
+	__device__ __host__ Node(int cId, int cStatus){
+		id = cId;
+		status = cStatus;
 	}
 
-	__device__ __host__ Node(int nStatus, int nRow, int nCol){
-		status = nStatus;
-		row = nRow;
-		col = nCol;
+	__device__ __host__ Node(int cId, int cStatus, int cRow, int cCol){
+		id = cId;
+		status = cStatus;
+		row = cRow;
+		col = cCol;
 	}
 
-	__device__ __host__ Node(int nStatus, int nRow, int nCol, int nCostG, int nCostH, int nTotalF, Node *nParentId){
-		status = nStatus;
-		row = nRow;
-		col = nCol;
-		costG = nCostG;	
-		costH = nCostH;	
-		totalF = nTotalF;
-		parent = parent;
+	__device__ __host__ Node(int cId, int cStatus, int cRow, int cCol, int cCostG, int cCostH, int cTotalF, Node *cParent){
+		id = cId;
+		status = cStatus;
+		row = cRow;
+		col = cCol;
+		costG = cCostG;	
+		costH = cCostH;	
+		totalF = cTotalF;
+		parent = cParent;
 	}
 
 	//SETTERS
-	__device__ __host__ void set_status(int nStatus){
-		status = nStatus;
+	__device__ __host__ void set_id(int cId){
+		id = cId;
 	}
-	__device__ __host__ void set_row(int nRow){
-		row = nRow;
+	__device__ __host__ void set_status(int cStatus){
+		status = cStatus;
 	}
-	__device__ __host__ void set_col(int nCol){
-		col = nCol;
+	__device__ __host__ void set_row(int cRow){
+		row = cRow;
 	}
-	__device__ __host__ void set_costG(int nCostG){
-		costG = nCostG;
+	__device__ __host__ void set_col(int cCol){
+		col = cCol;
 	}
-	__device__ __host__ void set_costH(int nCostH){
-		costH = nCostH;
+	__device__ __host__ void set_costG(int cCostG){
+		costG = cCostG;
 	}
-	__device__ __host__ void set_totalF(int nTotalF){
-		totalF = nTotalF;
+	__device__ __host__ void set_costH(int cCostH){
+		costH = cCostH;
+	}
+	__device__ __host__ void set_totalF(int cTotalF){
+		totalF = cTotalF;
 	}
 
 	//REVIEW
-	__device__ __host__ void set_parent(Node *nParent){
-		parent = nParent;
+	__device__ __host__ void set_parent(Node *cParent){
+		parent = cParent;
 	}
 
-	__device__ __host__ void set_agentId(int nAgentId){
-		agentId = nAgentId;
-	}
-
+	__device__ __host__ int get_id() { return id; }
 	__device__ __host__ int get_status() { return status; }
 	__device__ __host__ int get_row() { return row; }
 	__device__ __host__ int get_col() { return col; }
 	__device__ __host__ int get_costG() { return costG; }
 	__device__ __host__ int get_costH() { return costH; }
 	__device__ __host__ int get_totalF() { return totalF; }
-	__device__ __host__ int get_agentId() { return agentId; }
 	__device__ __host__ Node get_parent() { return *parent; }
 };
 
@@ -397,6 +243,160 @@ public:
 private:
 	Element *head;
 };
+
+//base agent class
+class Agent{
+public:
+	int id;
+	int result;
+
+	//constructors
+	__device__ __host__ Agent(){}
+	__device__ __host__ Agent(int cId, int cResult){
+		id = cId;
+		result = cResult;
+	}
+
+	//setters
+	__device__ __host__ void set_id(int cId){ id = cId; }
+	__device__ __host__ void set_result(int cResult){ result = cResult; }
+
+	//getters
+	__device__ __host__ int get_id(){ return id; }
+	__device__ __host__ int get_result() {return result; }
+};
+
+//agent class for A* search
+class AgentSearch: public Agent{
+public:
+	Node start;
+	Node end;
+	LinkedList path;
+
+	__device__ __host__ AgentSearch(){}
+
+	//agent constructor for a* search
+	__device__ __host__ AgentSearch(int cId, int cResult, Node cStart, Node cEnd, LinkedList cPath){
+		id = cId;
+		result = cResult;
+		start = cStart;
+		end = cEnd;
+		path = cPath;
+	}
+
+	//setters
+	__device__ __host__ void set_start(Node cStart){ start = cStart; }
+	__device__ __host__ void set_end(Node cEnd){ end = cEnd; }
+	__device__ __host__ void set_path(LinkedList cPath){ path = cPath; }
+
+	//getters
+	__device__ __host__ Node get_start(){ return start; }
+	__device__ __host__ Node get_end(){ return end; }
+	__device__ __host__ LinkedList get_path(){ return path; }
+};
+
+//agent class for finite state machines
+class AgentFSM: public Agent{
+public:
+	int fuellvl;
+	int distToCov;
+	int distCovd;
+	int currentState;
+
+	//agent constructor for fsm
+	__device__ __host__ AgentFSM(){}
+
+	__device__ __host__ AgentFSM(int cId, int cResult, int cFuellvl, int cDistToCov, int cDistCovd, int cCurrentState){
+		id = cId;
+		result = cResult;
+		fuellvl = cFuellvl;
+		distToCov = cDistToCov;
+		distCovd = cDistCovd;
+		currentState = cCurrentState;
+	}
+
+	//setters
+	__device__ __host__ void set_fuellvl(int cFuellvl){ fuellvl = cFuellvl; }
+	__device__ __host__ void set_distToCov(int cDistToCov){ distToCov = cDistToCov; }
+	__device__ __host__ void set_distCovd(int cDistCovd){ distCovd = cDistCovd; }
+	__device__ __host__ void set_currentState(int cCurrentState){ currentState = cCurrentState; }
+
+	//getters
+	__device__ __host__ int get_fuellvl(){ return fuellvl; }
+	__device__ __host__ int get_distToCov(){ return distToCov; }
+	__device__ __host__ int get_distCovd(){ return distCovd; }
+	__device__ __host__ int get_currentState(){ return currentState; }
+};
+
+//agent class for decision trees
+class AgentDT: public Agent{
+public:
+	//decisions will be randomised
+	//d1 -> first level
+	//d2 -> second level
+	//etc.
+	int d1, d2, d3, d4, d5, d6;
+
+	//agent constructor for dt -> 3 levels(minimum, at the moment anyway)
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+	}
+
+	//4 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+	}
+
+	//5 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+		d5 = cD5;
+	}
+
+	//6 levels
+	__device__ __host__ AgentDT(int cId, int cResult, int cD1, int cD2, int cD3, int cD4, int cD5, int cD6){
+		id = cId;
+		result = cResult;
+		d1 = cD1;
+		d2 = cD2;
+		d3 = cD3;
+		d4 = cD4;
+		d5 = cD5;
+		d6 = cD6;
+	}
+
+	//setters
+	__device__ __host__ void set_d1(int cD1){ d1 = cD1; }
+	__device__ __host__ void set_d2(int cD2){ d2 = cD2; }
+	__device__ __host__ void set_d3(int cD3){ d3 = cD3; }
+	__device__ __host__ void set_d4(int cD4){ d4 = cD4; }
+	__device__ __host__ void set_d5(int cD5){ d5 = cD5; }
+	__device__ __host__ void set_d6(int cD6){ d6 = cD6; }
+
+	//getters
+	__device__ __host__ int get_d1(){ return d1; }
+	__device__ __host__ int get_d2(){ return d2; }
+	__device__ __host__ int get_d3(){ return d3; }
+	__device__ __host__ int get_d4(){ return d4; }
+	__device__ __host__ int get_d5(){ return d5; }
+	__device__ __host__ int get_d6(){ return d6; }
+
+};
+
 /*
 class State {
 private:
@@ -730,7 +730,7 @@ KernelArray< T > convertToKernel( thrust::device_vector< T >& dVec )
 //------------------------------------------------------------------------------------------------------
 
 //A* Search
-__global__ void myKernel(Node* d_allNodesArr, Node* destinationArr, size_t pitch, int cols, int rows, KernelArray<Node> DevStartNodeArray, KernelArray<Node> DevEndNodeArray, int nodeArrLen){
+__global__ void searchKernel(Node* d_allNodesArr, Node* destinationArr, size_t pitch, int cols, int rows, KernelArray<Node> DevStartNodeArray, KernelArray<Node> DevEndNodeArray, int nodeArrLen){
 	
 	int idx=blockIdx.x*blockDim.x + threadIdx.x;
 	//number of squares from start node
@@ -875,111 +875,78 @@ int main(){
 	std::cin >> choice;
 
 
-	//A* SEARCH
 	if(choice == 1){
-		rows = N, 
-		cols = N;
-		int vectLen = 0;
-		int startX, startY;
-		int endX, endY;
+		int c = 0;
+		std::cout << "1: CPU execution" << std::endl;
+		std::cout << "2: CUDA execution" << std::endl;
+		std::cin >> c;
+		
+		if(c == 1){}
+		else if(c == 2) {
+			const int noOfAgents = 10;
+			const int noOfNodes = 64;
+			size_t size = noOfAgents * sizeof(AgentSearch);
+			size_t nodeSize = noOfNodes * sizeof(Node);
+			std::cout << "10 Agents are being initialised" << std::endl;
 
-		//agent list
-		std::vector<AgentSearch> agentList;
-		AgentSearch a1;
+			//allocate agents in host memory
+			AgentSearch* h_Agents = (AgentSearch*)malloc(size);
 
-		//start node list
-		std::vector<Node> startNodeList;
-		Node n1;
+			//allocate nodes in host memory
+			Node* h_AllNodes = (Node*)malloc(nodeSize);
 
-		//end node list
-		std::vector<Node> endNodeList;
-		Node n2;
-
-		//grid array
-		Node allNodesArr[N][N];	//8x8
-		Node* d_allNodesArr; // the device array which memory will be allocated to
-		Node* d_destinationArr;
-
-		//populate all nodes, default status
-		for(int i = 0; i < N; i++){
-			for(int j = 0; j < N; j++){
-				allNodesArr[i][j].set_status(W);
-				allNodesArr[i][j].set_row(i);
-				allNodesArr[i][j].set_col(j);
+			//init all Nodes
+			int k = 0;
+			for(int i = 0; i < N; i++){
+				for(int j = 0; j < N; j++){
+					h_AllNodes[k].set_id(k);
+					h_AllNodes[k].set_row(i);
+					h_AllNodes[k].set_col(i);
+					h_AllNodes[k].set_status(W);			//Walkable
+					k++;
+				}
 			}
+				
+			//init agents
+			//assign start and end to agents
+			for(int i = 0; i < noOfAgents; i++){
+				h_Agents[i].set_id(i);
+				h_Agents[i].set_start(h_AllNodes[5]);	//randomise?
+				h_Agents[i].set_end(h_AllNodes[25]);	//randomise?
+			}
+
+			//allocate agents in device memory
+			AgentSearch* d_Agents;
+			cudaMalloc((void **)&d_Agents, size);
+			//copy agents from host memory to device memory
+			cudaMemcpy(d_Agents, h_Agents, size, cudaMemcpyHostToDevice);
+
+			//alocate nodes in device memory
+			AgentSearch* d_AllNodes;
+			cudaMalloc((void **)&d_AllNodes, nodeSize);
+			//copy nodes from host memory to device memory
+			cudaMemcpy(d_AllNodes, h_AllNodes, nodeSize, cudaMemcpyHostToDevice);
+
+			//invoke kernel
+			int block_size = 4;
+			int n_blocks = noOfAgents/block_size + (noOfAgents%block_size == 0 ? 0:1);
+			searchKernel<<<n_blocks, block_size>>>(d_Agents, d_AllNodes, noOfAgents);
+			
+			cudaMemcpy(h_Agents, d_Agents, sizeof(AgentSearch)*noOfAgents, cudaMemcpyDeviceToHost);
+
+			//display results
+			for(int i = 0; i < noOfAgents; i++){
+				std::cout << h_Agents[i].get_result() << std::endl;
+			}
+
+			//free memory
+			free(h_Agents);
+			free(h_AllNodes);
+			cudaFree(d_Agents);
+			cudaFree(d_AllNodes);
 		}
-
-		//allocate memory on the host
-		Node* h_array = new Node[rows * cols];
-		//pitch value is assigned by cudaMallocPitch, provides correct data structure alignment
-		size_t pitch;
-		//memory for source array
-		cudaMallocPitch(&d_allNodesArr, &pitch, cols * sizeof(Node), rows);
-		//memory for dest array
-		cudaMalloc(&d_destinationArr, cols*rows*sizeof(Node));
-
-		//user input
-		std::cout << "Please enter the number of Agents: " << std::endl;
-		std::cin >> noAgents;
-	
-		for(int i = 0; i < noAgents; i++){
-			std::cout << "Agent " << i+1 << " Please enter START X: " << std::endl;
-			std::cin >> startX;
-
-			std::cout << "Agent " << i+1 << " Please enter START Y: " << std::endl;
-			std::cin >> startY;
-
-			std::cout << "Agent " << i+1 << " Please enter END X: " << std::endl;
-			std::cin >> endX;
-
-			std::cout << "Agent " << i+1 << " Please enter END Y: " << std::endl;
-			std::cin >> endY;
-
-			a1.set_id(i);
-			a1.set_startX(startX);
-			a1.set_startY(startY);
-			a1.set_endX(endX);
-			a1.set_endY(endY);
-			agentList.push_back(a1);
-		}
-
-		//iterate through the agentList
-		//and populate start node and end node vectors
-		std::vector<AgentSearch>::iterator agentIt;
-		for(agentIt = agentList.begin(); agentIt != agentList.end(); ++agentIt){
-			//start node
-			n1.set_status(S);
-			n1.set_row(agentIt->get_startX());
-			n1.set_col(agentIt->get_startY());
-			n1.set_agentId(agentIt->get_id());
-			startNodeList.push_back(n1);
-		
-			//end node
-			n2.set_status(E);
-			n2.set_row(agentIt->get_endX());
-			n2.set_col(agentIt->get_endY());
-			n2.set_agentId(agentIt->get_id());
-			endNodeList.push_back(n2);
-		}
-		
-		//convert the nodeList vector to thrust vector
-		thrust::device_vector<Node> DevStartNodeList(startNodeList.begin(), startNodeList.end());
-		thrust::device_vector<Node> DevEndNodeList(endNodeList.begin(), endNodeList.end());
-		//vector length
-		vectLen = startNodeList.end() - startNodeList.begin();
-
-		myKernel<<< 100, 512 >>> (d_allNodesArr, d_destinationArr, pitch, cols, rows, convertToKernel(DevStartNodeList), convertToKernel(DevEndNodeList), vectLen);
-
-		//return
-		cudaMemcpy(h_array, d_destinationArr, cols*rows*sizeof(Node), cudaMemcpyDeviceToHost);  
-	
-		for(int i = 0 ; i < rows; i++)  
-		  {  
-			for(int j = 0 ; j < cols ; j++)  
-			{  
-				std::cout << "h_array[" << (i*cols) + j << "]=" << h_array[(i*cols) + j].get_row() << ", " << h_array[(i*cols) + j].get_col() << std::endl;  
-			}  
-		}  
+		else
+			std::cout << "ERROR, wrong number" << std::endl;
 	}
 	//FINITE STATE MACHINE
 	else if(choice == 2){
@@ -1002,9 +969,6 @@ int main(){
 
 			//allocate agents in host memory
 			AgentFSM* h_Agents = (AgentFSM*)malloc(size);
-			
-			//init agents
-			//AgentFSM agents[noOfAgents];
 
 			//populate agents
 			while(i < noOfAgents){
@@ -1101,13 +1065,15 @@ int main(){
 			for(int i = 0; i < noOfAgents; i++){
 				std::cout << h_Agents[i].get_result() << std::endl;
 			}
-
+			
+			//free memory
+			free(h_Agents);
+			cudaFree(d_Agents);
 		}
 		else
 			std::cout << "ERROR, wrong number" << std::endl;
 
 	}
-	else{
+	else
 		std::cout << "ERROR, wrong number" << std::endl;
-	}
 }
