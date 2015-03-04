@@ -100,7 +100,7 @@ public:
 	__device__ __host__ int get_costG() { return costG; }
 	__device__ __host__ int get_costH() { return costH; }
 	__device__ __host__ int get_totalF() { return totalF; }
-	__device__ __host__ Node get_parent() { return *parent; }
+	__device__ __host__ Node* get_parent() { return parent; }
 };
 
 class LinkedList{
@@ -122,7 +122,7 @@ public:
 		el->n1.set_costG(funcN.get_costG());
 		el->n1.set_costH(funcN.get_costH()); 
 		el->n1.set_totalF(funcN.get_totalF());
-//		*el->n1.set_parent(funcN.get_parent());
+		el->n1.set_parent(funcN.get_parent());
 
 		el->next = head;
 		head = el;
@@ -138,19 +138,32 @@ public:
 		return false;
 	}
 
-	//check if node already in the list
-	__device__ __host__ bool contains(int x, int y){
+	//check if node already in the list NODE
+	__device__ __host__ bool contains(Node node){
 		Element *cur = head;
 
 		while(cur != NULL){
-			if((cur->n1.get_row() == x) && (cur->n1.get_col() == y)){
+			if((cur->n1.get_row() == node.get_row()) && (cur->n1.get_col() == node.get_col())){
 			//	if(cur->n1.get_totalF() < funcN.get_totalF()){
-					return true;
+				return true;
 			//	}
 			}
 			cur = cur->next;
 		}
 
+		return false;
+	}
+
+		//check if node already in the list X Y
+	__device__ __host__ bool contains(int x, int y, int f){
+		Element *cur = head;
+		
+		while(cur != NULL){
+			if(((cur->n1.get_row() == x) && (cur->n1.get_col() == y)) && (cur->n1.get_totalF() < f)){
+				return true;
+			}
+			cur = cur->next;
+		}
 		return false;
 	}
 
@@ -195,7 +208,7 @@ public:
 				lowest.set_costG(cur->n1.get_costG());
 				lowest.set_costH(cur->n1.get_costH());
 				lowest.set_totalF(cur->n1.get_totalF());
-//				lowest->n1.set_parent(cur->n1.get_parent());
+				//lowest->n1.set_parent(cur->n1.get_parent());
 			}
 			cur = cur->next;
 			index++;
@@ -729,139 +742,99 @@ KernelArray< T > convertToKernel( thrust::device_vector< T >& dVec )
 //!!---CODE FROM http://choorucode.com/2011/04/09/thrust-passing-device_vector-to-kernel/ ENDS HERE---!!
 //------------------------------------------------------------------------------------------------------
 
+//A* on cpu
+void AStart(Node* allNodes){
+	int curX, curY;
+	int G, H, F;
+
+
+}
+
 //A* Search
-__global__ void searchKernel(Node* d_allNodesArr, Node* destinationArr, size_t pitch, int cols, int rows, KernelArray<Node> DevStartNodeArray, KernelArray<Node> DevEndNodeArray, int nodeArrLen){
-	
-	int idx=blockIdx.x*blockDim.x + threadIdx.x;
-	//number of squares from start node
-	int G = 0;
-	//number of squares from end node
-	int	H = 0;
-	//total cost
-	int F;
-	int parX, parY;				//parent node
-	int curX, curY;				//current node
-	int d_startX, d_startY;		//start node
-	int d_endX, d_endY;			//end node
-	bool check = false;
-	//init open list
-	LinkedList openList[NO_LISTS];
+__global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int noOfAgents){
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int curX, curY;
+	int G, H, F;
+	//array of successors
+	//init open list	
+	LinkedList openList[10];
 	//init closed list
-	LinkedList closedList[NO_LISTS];
+	LinkedList closedList[10];
+	LinkedList finalPath[10];
 
-	int mainIndex = 0;
-	bool first = false;
-	bool second = false;
-
-	if(idx < nodeArrLen){
-		d_startX = DevStartNodeArray._array[idx].get_row();
-		d_startY = DevStartNodeArray._array[idx].get_col();
-
-		d_endX = DevEndNodeArray._array[idx].get_row();
-		d_endY = DevEndNodeArray._array[idx].get_col();
-		Node endNode;
-		endNode.set_row(d_endX);
-		endNode.set_col(d_endY);
-
-		//add start node to openList
-		//used the link below to fix ptxas fatal error
-		//http://stackoverflow.com/questions/17188527/cuda-external-class-linkage-and-unresolved-extern-function-in-ptxas-file
-		Node n;
+	if(idx < noOfAgents){
+		Node successors[3];
+		Node n = d_Agents[idx].get_start();
 		n.set_status(S);
-		n.set_row(d_startX);
-		n.set_col(d_startY);
 		n.set_totalF(0);
-		//put the starting node in open list
+
 		openList[idx].addNode(n);
 
-
-	//	Node n(W, d_startX, d_startY); //<--------DOESNT WORK -- ptxas fatal   : Unresolved extern function
-	//	openList[idx].addNode(d_startX, d_startY, 0, 0, 0, 0, 0);
-
-
-	/*	DO NOT DELETE THIS
-		--------------------------------
-		Node n1;
-		n1.set_status(S);
-		n1.set_row(3);
-		n1.set_col(3);
-		n1.set_totalF(30);
-		//put the starting node in open list
-		openList[idx].addNode(n);
-		openList[idx].addNode(n1);
-
-		Node newlowest = openList[idx].findLowestF();
-		destinationArr[0] = newlowest;
-		openList[idx].removeNode(newlowest);
-
-		Node onemore = openList[idx].findLowestF();
-		destinationArr[1] = onemore;
-		--------------------------------- */	
-
-		//loop until open list has elements
 		while(openList[idx].isEmpty() == false){
+			//find the node with the least f on the open list, call it "q
 			Node q = openList[idx].findLowestF();
-			closedList[idx].addNode(q);
+			//pop q off the open list
 			openList[idx].removeNode(q);
 
-			//check if end node is in closed list
-			if(closedList[idx].contains(endNode.get_row(), endNode.get_col())){
+			if(closedList[idx].contains(d_Agents[idx].get_end())){
 				//path found
 				break;
 			}
 
 			curX = q.get_row();
 			curY = q.get_col();
-			
 
+			int k=0;
+			//generate q's 84successors and set their parents to q
 			for(int i = curX - 1; i <= curX + 1; ++i){
-				Node* rowData = (Node*)((char*)d_allNodesArr + i * pitch);  
-				for (int j = curY - 1; j <= curY + 1; ++j) {
-					if(((i == curX) == (j == curY))) continue;
-		//			if(i == curX && j == curY) continue;
-					//if adjacent node is already in the closed list skip it
-					if(closedList[idx].contains(i,j)) continue;
-				
-					int checkI =i;
-					int checkJ =j;
-					
-					G = std::abs(i - d_startX) + std::abs(j - d_startY);
-
-					//if its not in the open list
-					if(!openList[idx].contains(i,j)){
-						//COMPUTE ITS SCORE AND SET THE PARENT
-						Node adjNode;
-						adjNode.set_row(checkI);
-						adjNode.set_col(checkJ);
-
-						//G
-						adjNode.set_costG(G);
-						//H
-						H = std::abs(i - d_endX) + std::abs(j - d_endY);
-						adjNode.set_costH(H);		
-						//F
-						F = G + H;
-						adjNode.set_totalF(F);
-						//set parent to q
-						adjNode.set_parent(&q);
-						//add the new adjacent node to open list
-						openList[idx].addNode(adjNode);
-					}
+				for(int j = curY - 1; j <= curY + 1; ++j){
+					//d_AllNodes[i * 8 * j]; 8= width
+					if((i == curX) == (j == curY)) continue;
 					else{
-						openList[idx].update(i, j, G, q);
+						Node s(0, W, i, j);
+						s.set_parent(&q);
+						successors[k] = s;
+						k++;
 					}
 				}
 			}
+			//for earch successor
+			for(int i = 0; i <= 3; ++i){
+				//get successors X & Y
+				int scsrX = successors[i].get_row();
+				int scsrY = successors[i].get_col();
+
+				//if successor is the goal, stop the search
+				if((scsrX == d_Agents[idx].get_end().get_row()) && (scsrY == d_Agents[idx].get_end().get_col())){
+					//stop search
+				}
+				else{
+					//successor.g = q.g + distance between successor and q
+					successors[i].set_costG(q.get_costG() +(std::abs(curX - d_Agents[idx].get_start().get_row()) + std::abs(curY - d_Agents[idx].get_start().get_col())));
+					//successor.h = distance from goal to successor
+					successors[i].set_costH(std::abs(curX - d_Agents[idx].get_end().get_row()) + std::abs(curY - d_Agents[idx].get_end().get_col()));
+					//successor.f = successor.g + successor.h
+					successors[i].set_totalF(successors[i].get_costG() + successors[i].get_costH());
+
+					//if a node with the same position as successor is in the OPEN list \
+					which has a lower f than successor, skip this successor
+					if(openList[idx].contains(scsrX, scsrY, successors[i].get_totalF())) continue;
+					//if a node with the same position as successor is in the CLOSED list \
+					which has a lower f than successor, skip this successor
+					else if(closedList[idx].contains(scsrX, scsrY, successors[i].get_totalF())) continue;
+					//otherwise, add the node to the open list
+					else {
+						Node toAdd = successors[i];
+						openList[idx].addNode(toAdd);
+					}
+				}
+			}
+			//push q on the closed list
+			closedList[idx].addNode(q);
 		}
-		int thisIndex = 0;
-		while(!closedList[idx].isEmpty()){
-			Node first = closedList[idx].popFirstNode();
-			destinationArr[thisIndex] = first;
-			thisIndex++;
-		}
+		d_Agents[idx].set_result(1);
 	}
 }
-
 
 int main(){
 	int rows, cols;
@@ -901,7 +874,7 @@ int main(){
 				for(int j = 0; j < N; j++){
 					h_AllNodes[k].set_id(k);
 					h_AllNodes[k].set_row(i);
-					h_AllNodes[k].set_col(i);
+					h_AllNodes[k].set_col(j);
 					h_AllNodes[k].set_status(W);			//Walkable
 					k++;
 				}
@@ -922,7 +895,7 @@ int main(){
 			cudaMemcpy(d_Agents, h_Agents, size, cudaMemcpyHostToDevice);
 
 			//alocate nodes in device memory
-			AgentSearch* d_AllNodes;
+			Node* d_AllNodes;
 			cudaMalloc((void **)&d_AllNodes, nodeSize);
 			//copy nodes from host memory to device memory
 			cudaMemcpy(d_AllNodes, h_AllNodes, nodeSize, cudaMemcpyHostToDevice);
@@ -936,7 +909,8 @@ int main(){
 
 			//display results
 			for(int i = 0; i < noOfAgents; i++){
-				std::cout << h_Agents[i].get_result() << std::endl;
+				//std::cout << h_Agents[i].get_result() << std::endl;
+				std::cout << "asd" << std::endl;
 			}
 
 			//free memory
