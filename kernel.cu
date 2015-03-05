@@ -103,13 +103,15 @@ public:
 	__device__ __host__ Node* get_parent() { return parent; }
 };
 
-class LinkedList{
-	__device__ __host__ struct Element{
+__device__ __host__ struct Element{
 		Node n1;
 		Element *next;
-	};
+};
 
+class LinkedList{
 public:
+	Element *head;
+
 	__device__ __host__ LinkedList(){
 		head = NULL;
 	}
@@ -216,17 +218,19 @@ public:
 		return lowest;
 	}
 
-	//does not work!!!
+	//does not work
+	//__device__ 
 	__device__ __host__ Node popFirstNode(){
-		Element *cur = head;
-		Node n;
-
-		if(cur != NULL){
-			n = cur -> n1;
-			head = head -> next;
-		}
-		delete cur;
-		return n;
+	Element *cur = head;
+	Node n;
+	
+	if(cur != NULL){
+		n = cur -> n1;
+		head = head -> next;
+	}
+	
+	delete cur;
+	return n;
 	}
 
 	__device__ __host__ int removeNode(Node popNode){
@@ -253,8 +257,7 @@ public:
 		}
 		return 0;
 	}
-private:
-	Element *head;
+
 };
 
 //base agent class
@@ -760,7 +763,7 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 	LinkedList openList[10];
 	//init closed list
 	LinkedList closedList[10];
-	LinkedList finalPath[10];
+	bool found = false;
 
 	if(idx < noOfAgents){
 		Node successors[3];
@@ -778,6 +781,7 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 
 			if(closedList[idx].contains(d_Agents[idx].get_end())){
 				//path found
+				found = true;
 				break;
 			}
 
@@ -807,6 +811,8 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 				//if successor is the goal, stop the search
 				if((scsrX == d_Agents[idx].get_end().get_row()) && (scsrY == d_Agents[idx].get_end().get_col())){
 					//stop search
+					found = true;
+					break;
 				}
 				else{
 					//successor.g = q.g + distance between successor and q
@@ -831,8 +837,9 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 			}
 			//push q on the closed list
 			closedList[idx].addNode(q);
+			if(found == true) break;
 		}
-		d_Agents[idx].set_result(1);
+		d_Agents[idx].set_result(idx);
 	}
 }
 
@@ -840,6 +847,7 @@ int main(){
 	int rows, cols;
 	int noAgents;
 	int choice;
+	LinkedList result;
 
 	std::cout << "Choose one" << std::endl;
 	std::cout << "1: A* Search" << std::endl;
@@ -909,8 +917,17 @@ int main(){
 
 			//display results
 			for(int i = 0; i < noOfAgents; i++){
-				//std::cout << h_Agents[i].get_result() << std::endl;
-				std::cout << "asd" << std::endl;
+				//get path for i agent
+			//	result = h_Agents[i].get_path();
+			//	Node n1(0,W,1,5);
+			//	result.addNode(n1);
+				//print path
+				std::cout << h_Agents[i].get_result() << std::endl;
+			//	while(result.isEmpty() == false){
+					//first node from the list
+			//		Node n = result.popFirstNode();
+			//		std::cout << "x: " << n.get_row() << " y: " << n.get_col();
+			//	}
 			}
 
 			//free memory
