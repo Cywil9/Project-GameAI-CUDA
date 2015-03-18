@@ -31,6 +31,7 @@ const int O = 3; //OBSTRUCTION
 class Node{
 public:
 	int id;
+	int prev;
 	int status;
 	int row;
 	int col;
@@ -69,6 +70,9 @@ public:
 	__device__ __host__ void set_id(int cId){
 		id = cId;
 	}
+	__device__ __host__ void set_prev(int cPrev){
+		prev = cPrev;
+	}
 	__device__ __host__ void set_status(int cStatus){
 		status = cStatus;
 	}
@@ -94,6 +98,7 @@ public:
 	}
 
 	__device__ __host__ int get_id() { return id; }
+	__device__ __host__ int get_prev() { return prev; }
 	__device__ __host__ int get_status() { return status; }
 	__device__ __host__ int get_row() { return row; }
 	__device__ __host__ int get_col() { return col; }
@@ -103,14 +108,12 @@ public:
 	__device__ __host__ Node* get_parent() { return parent; }
 };
 
-__device__ __host__ struct Element{
-		Node n1;
-		Element *next;
-};
-
 class LinkedList{
 public:
-	Element *head;
+	__device__ __host__ struct Element{
+			Node n1;
+			Element *next;
+	};
 
 	__device__ __host__ LinkedList(){
 		head = NULL;
@@ -118,13 +121,7 @@ public:
 
 	__device__ __host__ void addNode(Node funcN){
 		Element *el = new Element();
-		el->n1.set_status(funcN.get_status());
-		el->n1.set_row(funcN.get_row());
-		el->n1.set_col(funcN.get_col());
-		el->n1.set_costG(funcN.get_costG());
-		el->n1.set_costH(funcN.get_costH()); 
-		el->n1.set_totalF(funcN.get_totalF());
-		el->n1.set_parent(funcN.get_parent());
+		el->n1 = funcN;
 
 		el->next = head;
 		head = el;
@@ -156,7 +153,7 @@ public:
 		return false;
 	}
 
-		//check if node already in the list X Y
+	//check if node already in the list X Y
 	__device__ __host__ bool contains(int x, int y, int f){
 		Element *cur = head;
 		
@@ -196,21 +193,10 @@ public:
 
 		while(cur != NULL){
 			if(index == 0){
-				lowest.set_status(cur->n1.get_status());
-				lowest.set_row(cur->n1.get_row());
-				lowest.set_col(cur->n1.get_col());
-				lowest.set_costG(cur->n1.get_costG());
-				lowest.set_costH(cur->n1.get_costH());
-				lowest.set_totalF(cur->n1.get_totalF());
+				lowest = cur->n1;
 			}
 			else if(cur->n1.get_totalF() < lowest.get_totalF()){
-				lowest.set_status(cur->n1.get_status());
-				lowest.set_row(cur->n1.get_row());
-				lowest.set_col(cur->n1.get_col());
-				lowest.set_costG(cur->n1.get_costG());
-				lowest.set_costH(cur->n1.get_costH());
-				lowest.set_totalF(cur->n1.get_totalF());
-				//lowest->n1.set_parent(cur->n1.get_parent());
+				lowest = cur->n1;
 			}
 			cur = cur->next;
 			index++;
@@ -218,27 +204,37 @@ public:
 		return lowest;
 	}
 
-	//does not work
-	//__device__ 
 	__device__ __host__ Node popFirstNode(){
-	Element *cur = head;
-	Node n;
+		Element *cur = head;
+		Node n;
 	
-	if(cur != NULL){
-		n = cur -> n1;
-		head = head -> next;
-	}
+		if(cur != NULL){
+			n = cur -> n1;
+			head = head -> next;
+		}
 	
-	delete cur;
-	return n;
+		delete cur;
+		return n;
 	}
+
+	//for Node prev
+	__device__ __host__ Node returnFirstNode(){
+		Element *cur = head;
+		Node n;
+	
+		if(cur != NULL){
+			n = cur -> n1;
+		}
+	
+		return n;
+	}
+
 
 	__device__ __host__ int removeNode(Node popNode){
 		Element *cur = head, *prev;
 
 		while(cur != NULL){
-			if((cur->n1.get_totalF() == popNode.get_totalF() )&& (cur->n1.get_row() == popNode.get_row()) && (cur->n1.get_col() == popNode.get_col())) {
-				//&& (cur->n1.get_row() == popNode.get_row()) && (cur->n1.get_col() == popNode.get_col())){
+			if((cur->n1.get_row() == popNode.get_row()) && (cur->n1.get_col() == popNode.get_col())) {
 				if(cur == head){
 					head = cur->next;
 					delete cur;
@@ -258,6 +254,7 @@ public:
 		return 0;
 	}
 
+	Element *head;
 };
 
 //base agent class
@@ -757,12 +754,16 @@ void AStart(Node* allNodes){
 __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int noOfAgents){
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	int curX, curY;
+	int prevX, prevY;
+	int height = 8, width = 8;
 	int G, H, F;
 	//array of successors
 	//init open list	
 	LinkedList openList[10];
 	//init closed list
 	LinkedList closedList[10];
+
+
 	bool found = false;
 
 	if(idx < noOfAgents){
@@ -789,10 +790,9 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 			curY = q.get_col();
 
 			int k=0;
-			//generate q's 84successors and set their parents to q
+			//generate q's 4successors and set their parents to q
 			for(int i = curX - 1; i <= curX + 1; ++i){
 				for(int j = curY - 1; j <= curY + 1; ++j){
-					//d_AllNodes[i * 8 * j]; 8= width
 					if((i == curX) == (j == curY)) continue;
 					else{
 						Node s(0, W, i, j);
@@ -814,9 +814,12 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 					found = true;
 					break;
 				}
+				//out of grid
+				else if((scsrX > 7) || (scsrY > 7)) continue;
 				else{
 					//successor.g = q.g + distance between successor and q
-					successors[i].set_costG(q.get_costG() +(std::abs(curX - d_Agents[idx].get_start().get_row()) + std::abs(curY - d_Agents[idx].get_start().get_col())));
+					//successors[i].set_costG(q.get_costG() +(std::abs(curX - d_Agents[idx].get_start().get_row()) + std::abs(curY - d_Agents[idx].get_start().get_col())));
+					successors[i].set_costG(std::abs(curX - d_Agents[idx].get_start().get_row()) + std::abs(curY - d_Agents[idx].get_start().get_col()));
 					//successor.h = distance from goal to successor
 					successors[i].set_costH(std::abs(curX - d_Agents[idx].get_end().get_row()) + std::abs(curY - d_Agents[idx].get_end().get_col()));
 					//successor.f = successor.g + successor.h
@@ -835,26 +838,38 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 					}
 				}
 			}
+			//if empty set prev to zero
+			if(closedList[idx].isEmpty() == true){
+			//	prevX = d_Agents[idx].get_start().row;
+			//	prevY = d_Agents[idx].get_start().col;
+				prevX = 0;
+				prevY = 0;
+			}
+			else{
+				Node prev = closedList[idx].returnFirstNode();
+				prevX = prev.get_row();
+				prevY = prev.get_col();
+			}
 			//push q on the closed list
 			closedList[idx].addNode(q);
+			int curId = idx * height * width + q.get_row()* width + q.get_col();
+			int prevId = idx * height * width + prevX * width + prevY;
+			d_AllNodes[curId].set_prev(prevId);
 			if(found == true) break;
 		}
-		d_Agents[idx].set_result(idx);
 	}
 }
 
 int main(){
-	int rows, cols;
+	int height = 8, width = 8;
 	int noAgents;
 	int choice;
-	LinkedList result;
 
 	std::cout << "Choose one" << std::endl;
 	std::cout << "1: A* Search" << std::endl;
 	std::cout << "2: Finite State Machine" << std::endl;
 	std::cout << "3: Decision Trees" << std::endl;
 	std::cin >> choice;
-
 
 	if(choice == 1){
 		int c = 0;
@@ -864,36 +879,36 @@ int main(){
 		
 		if(c == 1){}
 		else if(c == 2) {
-			const int noOfAgents = 10;
+			const int noOfAgents = 2;
 			const int noOfNodes = 64;
 			size_t size = noOfAgents * sizeof(AgentSearch);
-			size_t nodeSize = noOfNodes * sizeof(Node);
-			std::cout << "10 Agents are being initialised" << std::endl;
+			size_t allNodesSize = noOfAgents * (noOfNodes * sizeof(Node));
+			std::cout << "10 Agents are being initialised" << std::endl;			
 
 			//allocate agents in host memory
 			AgentSearch* h_Agents = (AgentSearch*)malloc(size);
-
 			//allocate nodes in host memory
-			Node* h_AllNodes = (Node*)malloc(nodeSize);
+			Node* h_AllNodes = (Node*)malloc(allNodesSize);
 
-			//init all Nodes
-			int k = 0;
-			for(int i = 0; i < N; i++){
-				for(int j = 0; j < N; j++){
-					h_AllNodes[k].set_id(k);
-					h_AllNodes[k].set_row(i);
-					h_AllNodes[k].set_col(j);
-					h_AllNodes[k].set_status(W);			//Walkable
-					k++;
+			//init all Nodes flat 3D array
+			int l = 0;
+			for(int k = 0; k < noOfAgents; k++){
+				for(int r = 0; r < height; r++){
+					for(int c = 0; c < width; c++){
+						h_AllNodes[k*height*width + r*width + c].set_id(l);
+						h_AllNodes[k*height*width + r*width + c].set_row(r);
+						h_AllNodes[k*height*width + r*width + c].set_col(c);
+						h_AllNodes[k*height*width + r*width + c].set_status(W);
+					}
 				}
 			}
-				
+
 			//init agents
 			//assign start and end to agents
 			for(int i = 0; i < noOfAgents; i++){
 				h_Agents[i].set_id(i);
-				h_Agents[i].set_start(h_AllNodes[5]);	//randomise?
-				h_Agents[i].set_end(h_AllNodes[25]);	//randomise?
+				h_Agents[i].set_start(h_AllNodes[13]);	//randomise?
+				h_Agents[i].set_end(h_AllNodes[63]);	//randomise?
 			}
 
 			//allocate agents in device memory
@@ -904,30 +919,19 @@ int main(){
 
 			//alocate nodes in device memory
 			Node* d_AllNodes;
-			cudaMalloc((void **)&d_AllNodes, nodeSize);
+			cudaMalloc((void **)&d_AllNodes, allNodesSize);
 			//copy nodes from host memory to device memory
-			cudaMemcpy(d_AllNodes, h_AllNodes, nodeSize, cudaMemcpyHostToDevice);
+			cudaMemcpy(d_AllNodes, h_AllNodes, allNodesSize, cudaMemcpyHostToDevice);
 
 			//invoke kernel
 			int block_size = 4;
 			int n_blocks = noOfAgents/block_size + (noOfAgents%block_size == 0 ? 0:1);
 			searchKernel<<<n_blocks, block_size>>>(d_Agents, d_AllNodes, noOfAgents);
-			
-			cudaMemcpy(h_Agents, d_Agents, sizeof(AgentSearch)*noOfAgents, cudaMemcpyDeviceToHost);
 
-			//display results
-			for(int i = 0; i < noOfAgents; i++){
-				//get path for i agent
-			//	result = h_Agents[i].get_path();
-			//	Node n1(0,W,1,5);
-			//	result.addNode(n1);
-				//print path
-				std::cout << h_Agents[i].get_result() << std::endl;
-			//	while(result.isEmpty() == false){
-					//first node from the list
-			//		Node n = result.popFirstNode();
-			//		std::cout << "x: " << n.get_row() << " y: " << n.get_col();
-			//	}
+			cudaMemcpy(h_AllNodes, d_AllNodes, allNodesSize, cudaMemcpyDeviceToHost);
+
+			for(int i =0; i < 64*noOfAgents; i++){
+				std::cout << h_AllNodes[i].get_row() << " " << h_AllNodes[i].get_col() << " Prev id: " << h_AllNodes[i].get_prev() << std::endl;
 			}
 
 			//free memory
