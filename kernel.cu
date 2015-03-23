@@ -15,6 +15,7 @@
 #include <thrust/device_vector.h>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <stdlib.h>     /* abs */
 #include <ctime>
@@ -645,7 +646,6 @@ __global__ void carFSM(AgentFSM* d_array,  int noOfAgents){
 	}
 }
 
-
 //CPU execution
 void carDT(int agents){
 	int i = 0;
@@ -807,7 +807,7 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 				//get successors X & Y
 				int scsrX = successors[i].get_row();
 				int scsrY = successors[i].get_col();
-
+				int status = successors[i].get_status();
 				//if successor is the goal, stop the search
 				if((scsrX == d_Agents[idx].get_end().get_row()) && (scsrY == d_Agents[idx].get_end().get_col())){
 					//stop search
@@ -816,6 +816,7 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 				}
 				//out of grid
 				else if((scsrX > 7) || (scsrY > 7)) continue;
+				else if(d_AllNodes[idx * height * width + scsrX * width + scsrY].get_status() == O) continue;
 				else{
 					//successor.g = q.g + distance between successor and q
 					//successors[i].set_costG(q.get_costG() +(std::abs(curX - d_Agents[idx].get_start().get_row()) + std::abs(curY - d_Agents[idx].get_start().get_col())));
@@ -838,12 +839,14 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 					}
 				}
 			}
+			
 			//if empty set prev to zero
 			if(closedList[idx].isEmpty() == true){
 			//	prevX = d_Agents[idx].get_start().row;
 			//	prevY = d_Agents[idx].get_start().col;
 				prevX = 0;
 				prevY = 0;
+				
 			}
 			else{
 				Node prev = closedList[idx].returnFirstNode();
@@ -853,7 +856,13 @@ __global__ void searchKernel(AgentSearch* d_Agents, Node* d_AllNodes, const int 
 			//push q on the closed list
 			closedList[idx].addNode(q);
 			int curId = idx * height * width + q.get_row()* width + q.get_col();
-			int prevId = idx * height * width + prevX * width + prevY;
+			int prevId;
+			if(prevX == 0 && prevY == 0){
+				prevId = 0;
+			}
+			else{
+				prevId = idx * height * width + prevX * width + prevY;
+			}
 			d_AllNodes[curId].set_prev(prevId);
 			if(found == true) break;
 		}
@@ -879,16 +888,25 @@ int main(){
 		
 		if(c == 1){}
 		else if(c == 2) {
-			const int noOfAgents = 2;
+			//used to implement performance metrics
+			cudaEvent_t start, stop;
+			cudaEventCreate(&start);
+			cudaEventCreate(&stop);
+			float milliseconds = 0;
+			//number of threads (idx on cuda)
+			const int noOfAgents = 1;
+			//grid of 8x8 = 64 nodes
 			const int noOfNodes = 64;
 			size_t size = noOfAgents * sizeof(AgentSearch);
+			//get the size of all nodes of all agents
 			size_t allNodesSize = noOfAgents * (noOfNodes * sizeof(Node));
 			std::cout << "10 Agents are being initialised" << std::endl;			
 
 			//allocate agents in host memory
 			AgentSearch* h_Agents = (AgentSearch*)malloc(size);
-			//allocate nodes in host memory
+			//allocate all nodes in host memory
 			Node* h_AllNodes = (Node*)malloc(allNodesSize);
+
 
 			//init all Nodes flat 3D array
 			int l = 0;
@@ -898,10 +916,12 @@ int main(){
 						h_AllNodes[k*height*width + r*width + c].set_id(l);
 						h_AllNodes[k*height*width + r*width + c].set_row(r);
 						h_AllNodes[k*height*width + r*width + c].set_col(c);
-						h_AllNodes[k*height*width + r*width + c].set_status(W);
+						h_AllNodes[k*height*width + r*width + c].set_status(W); //walkable
 					}
 				}
 			}
+
+			h_AllNodes[21].set_status(O);
 
 			//init agents
 			//assign start and end to agents
@@ -926,13 +946,31 @@ int main(){
 			//invoke kernel
 			int block_size = 4;
 			int n_blocks = noOfAgents/block_size + (noOfAgents%block_size == 0 ? 0:1);
+			//record execution time
+			cudaEventRecord(start);	
 			searchKernel<<<n_blocks, block_size>>>(d_Agents, d_AllNodes, noOfAgents);
+			cudaEventRecord(stop);
 
+			//copy results back to the host array of nodes
 			cudaMemcpy(h_AllNodes, d_AllNodes, allNodesSize, cudaMemcpyDeviceToHost);
 
+			//store execution time in variable milliseconds
+			cudaEventElapsedTime(&milliseconds, start, stop);
+
+			//print results
 			for(int i =0; i < 64*noOfAgents; i++){
-				std::cout << h_AllNodes[i].get_row() << " " << h_AllNodes[i].get_col() << " Prev id: " << h_AllNodes[i].get_prev() << std::endl;
+				std::cout << "Index " << i << ": " << h_AllNodes[i].get_row() << " " << h_AllNodes[i].get_col() << " Prev id: " << h_AllNodes[i].get_prev() << std::endl;
 			}
+
+			//print execution time
+			std::cout << "Execution time: " << milliseconds << std::endl;
+
+
+			//save execution time to a CSV file
+			std::ofstream myfile;
+			myfile.open("astarResults.csv",std::ios_base::app);
+			myfile << milliseconds << ", " << "\n";
+			myfile.close();
 
 			//free memory
 			free(h_Agents);
@@ -958,7 +996,7 @@ int main(){
 		//cuda execution
 		else if(c == 2){
 			int i = 0;
-			const int noOfAgents = 10;
+			const int noOfAgents = 1;
 			size_t size = noOfAgents * sizeof(AgentFSM);
 			std::cout << "10 Agents are being initialised" << std::endl;
 
